@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>لعبة سباق الطريق</title>
+<style>
+    * {
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+    }
+
+```
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: #111827;
+    color: #ffffff;
+    font-family: Arial, Tahoma, sans-serif;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#gameShell {
+    position: relative;
+    width: min(100vw, 520px);
+    height: min(100vh, 900px);
+    background: #1f2937;
+    overflow: hidden;
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.55);
+}
+
+canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+}
+
+#hud {
+    position: absolute;
+    top: 12px;
+    left: 10px;
+    right: 10px;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    pointer-events: none;
+}
+
+.stat {
+    background: rgba(0, 0, 0, 0.48);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 12px;
+    padding: 8px 6px;
+    text-align: center;
+    backdrop-filter: blur(4px);
+}
+
+.stat span {
+    display: block;
+    font-size: 11px;
+    opacity: 0.75;
+    margin-bottom: 3px;
+}
+
+.stat strong {
+    font-size: 17px;
+}
+
+#powerStatus {
+    position: absolute;
+    top: 82px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 6;
+    min-width: 155px;
+    padding: 8px 14px;
+    border-radius: 20px;
+    background: rgba(0, 0, 0, 0.52);
+    text-align: center;
+    font-size: 13px;
+    font-weight: bold;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+}
+
+#powerStatus.visible {
+    opacity: 1;
+}
+
+#overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: rgba(5, 10, 20, 0.82);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.panel {
+    width: 100%;
+    max-width: 390px;
+    text-align: center;
+    background: linear-gradient(145deg, #1f2937, #111827);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 24px;
+    padding: 30px 22px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+}
+
+.panel h1 {
+    margin: 0 0 12px;
+    font-size: 30px;
+}
+
+.panel p {
+    margin: 8px 0;
+    color: #d1d5db;
+    line-height: 1.7;
+    font-size: 14px;
+}
+
+#actionButton {
+    width: 100%;
+    border: 0;
+    border-radius: 14px;
+    margin-top: 20px;
+    padding: 16px;
+    background: #22c55e;
+    color: #ffffff;
+    font-size: 19px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+#actionButton:active {
+    transform: scale(0.98);
+}
+
+#mobileControls {
+    position: absolute;
+    bottom: 18px;
+    left: 16px;
+    right: 16px;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+}
+
+.controlButton {
+    width: 74px;
+    height: 64px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 18px;
+    background: rgba(0, 0, 0, 0.42);
+    color: #ffffff;
+    font-size: 32px;
+    cursor: pointer;
+    pointer-events: auto;
+    user-select: none;
+}
+
+.controlButton:active {
+    transform: scale(0.94);
+    background: rgba(255, 255, 255, 0.18);
+}
+
+@media (min-width: 700px) {
+    #gameShell {
+        border-radius: 18px;
+    }
+}
+```
+
+</style>
+</head>
+<body>
+
+<div id="gameShell">
+    <canvas id="gameCanvas"></canvas>
+
+```
+<div id="hud">
+    <div class="stat">
+        <span>المسافة</span>
+        <strong id="distanceValue">0 م</strong>
+    </div>
+    <div class="stat">
+        <span>السرعة</span>
+        <strong id="speedValue">x1.00</strong>
+    </div>
+    <div class="stat">
+        <span>أفضل نتيجة</span>
+        <strong id="bestValue">0 م</strong>
+    </div>
+</div>
+
+<div id="powerStatus"></div>
+
+<div id="mobileControls">
+    <button class="controlButton" id="leftButton" aria-label="التحرك يسار">←</button>
+    <button class="controlButton" id="rightButton" aria-label="التحرك يمين">→</button>
+</div>
+
+<div id="overlay">
+    <div class="panel">
+        <h1 id="overlayTitle">سباق الطريق</h1>
+        <p id="overlayText">
+            تنقل بين المسارات وتجنب السيارات القادمة.
+            اجمع الدرع أو التبطيء عند ظهورها.
+        </p>
+        <p>
+            التحكم: الأسهم ← → أو الأزرار أو السحب على الشاشة.
+        </p>
+        <button id="actionButton">ابدأ الجولة</button>
+    </div>
+</div>
+```
+
+</div>
+
+<script>
+"use strict";
+
+/* Game tuning values */
+const INITIAL_SPEED = 260;
+const SPEED_INCREASE_RATE = 9;
+const MAX_SPEED = 620;
+const ROW_DISTANCE = 150;
+const LANE_COUNT = 3;
+
+/* Timing limits */
+const MAX_DELTA_TIME = 0.05;
+const SLOW_TIME_DURATION = 3;
+const POWERUP_SPAWN_MIN = 7;
+const POWERUP_SPAWN_MAX = 12;
+
+/* Canvas setup */
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+const shell = document.getElementById("gameShell");
+const overlay = document.getElementById("overlay");
+const overlayTitle = document.getElementById("overlayTitle");
+const overlayText = document.getElementById("overlayText");
+const actionButton = document.getElementById("actionButton");
+
+const distanceValue = document.getElementById("distanceValue");
+const speedValue = document.getElementById("speedValue");
+const bestValue = document.getElementById("bestValue");
+const powerStatus = document.getElementById("powerStatus");
+
+const leftButton = document.getElementById("leftButton");
+const rightButton = document.getElementById("rightButton");
+
+/* Persistent session score */
+let bestScore = Number(sessionStorage.getItem("roadRacerBestScore") || 0);
+
+/* Animation state */
+let animationFrameId = null;
+let lastTimestamp = null;
+let running = false;
+
+/* Game state */
+let gameWidth = 0;
+let gameHeight = 0;
+let roadWidth = 0;
+let roadLeft = 0;
+let laneWidth = 0;
+
+let distance = 0;
+let currentSpeed = INITIAL_SPEED;
+let roadLineOffset = 0;
+let rowSpawnTimer = 0;
+let powerupSpawnTimer = 0;
+let elapsedTime = 0;
+
+let player = null;
+let obstacles = [];
+let powerups = [];
+
+let shieldActive = false;
+let slowActive = false;
+let slowRemaining = 0;
+
+let audioContext = null;
+
+/* Audio helpers */
+function ensureAudio() {
+    if (!audioContext) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+            audioContext = new AudioContextClass();
+        }
+    }
+
+    if (audioContext && audioContext.state === "suspended") {
+        audioContext.resume();
+    }
+}
+
+function playTone(frequency, duration, type, volume, slideTo) {
+    if (!audioContext) {
+        return;
+    }
+
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const now = audioContext.currentTime;
+
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency, now);
+
+    if (slideTo) {
+        oscillator.frequency.exponentialRampToValueAtTime(
+            Math.max(20, slideTo),
+            now + duration
+        );
+    }
+
+    gain.gain.setValueAtTime(volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+
+    oscillator.start(now);
+    oscillator.stop(now + duration);
+}
+
+function playPickupSound() {
+    ensureAudio();
+    playTone(650, 0.1, "sine", 0.07, 900);
+    setTimeout(() => playTone(900, 0.12, "sine", 0.06, 1200), 70);
+}
+
+function playShieldHitSound() {
+    ensureAudio();
+    playTone(240, 0.18, "square", 0.08, 520);
+}
+
+function playCrashSound() {
+    ensureAudio();
+    playTone(180, 0.28, "sawtooth", 0.1, 45);
+}
+
+function playGameOverSound() {
+    ensureAudio();
+    setTimeout(() => playTone(280, 0.15, "sine", 0.08, 180), 40);
+    setTimeout(() => playTone(180, 0.25, "sine", 0.07, 80), 170);
+}
+
+/* Responsive canvas */
+function resizeCanvas() {
+    const rect = shell.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    gameWidth = Math.floor(rect.width);
+    gameHeight = Math.floor(rect.height);
+
+    canvas.width = Math.floor(gameWidth * dpr);
+    canvas.height = Math.floor(gameHeight * dpr);
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    roadWidth = Math.min(gameWidth * 0.82, 410);
+    roadLeft = (gameWidth - roadWidth) / 2;
+    laneWidth = roadWidth / LANE_COUNT;
+
+    if (player) {
+        player.width = laneWidth * 0.52;
+        player.height = player.width * 1.65;
+        player.y = gameHeight - player.height - 92;
+        player.x = laneCenter(player.targetLane) - player.width / 2;
+    }
+}
+
+/* Lane helpers */
+function laneCenter(laneIndex) {
+    return roadLeft + laneWidth * laneIndex + laneWidth / 2;
+}
+
+/* Reset all round state in one function */
+function resetRoundState() {
+    distance = 0;
+    currentSpeed = INITIAL_SPEED;
+    roadLineOffset = 0;
+    rowSpawnTimer = 0;
+    powerupSpawnTimer = randomRange(POWERUP_SPAWN_MIN, POWERUP_SPAWN_MAX);
+    elapsedTime = 0;
+
+    obstacles = [];
+    powerups = [];
+
+    shieldActive = false;
+    slowActive = false;
+    slowRemaining = 0;
+
+    const playerWidth = laneWidth * 0.52;
+    const playerHeight = playerWidth * 1.65;
+
+    player = {
+        lane: 1,
+        targetLane: 1,
+        x: laneCenter(1) - playerWidth / 2,
+        y: gameHeight - playerHeight - 92,
+        width: playerWidth,
+        height: playerHeight,
+        moveSpeed: laneWidth * 9
+    };
+
+    updateHud();
+    updatePowerStatus();
+}
+
+/* Random helper */
+function randomRange(min, max) {
+    return min + Math.random() * (max - min);
+}
+
+/* Safe row generation */
+function spawnObstacleRow() {
+    const occupiedLanes = [];
+
+    for (let lane = 0; lane < LANE_COUNT; lane++) {
+        if (Math.random() < 0.52) {
+            occupiedLanes.push(lane);
+        }
+    }
+
+    if (occupiedLanes.length === 0) {
+        occupiedLanes.push(Math.floor(Math.random() * LANE_COUNT));
+    }
+
+    if (occupiedLanes.length >= LANE_COUNT) {
+        const removeIndex = Math.floor(Math.random() * occupiedLanes.length);
+        occupiedLanes.splice(removeIndex, 1);
+    }
+
+    const carWidth = laneWidth * 0.55;
+    const carHeight = carWidth * 1.62;
+
+    occupiedLanes.forEach((lane) => {
+        obstacles.push({
+            lane,
+            x: laneCenter(lane) - carWidth / 2,
+            y: -carHeight - 30,
+            width: carWidth,
+            height: carHeight,
+            speedFactor: randomRange(0.94, 1.08),
+            colorIndex: Math.floor(Math.random() * 5)
+        });
+    });
+}
+
+/* Power-up generation */
+function spawnPowerup() {
+    const lane = Math.floor(Math.random() * LANE_COUNT);
+    const type = Math.random() < 0.5 ? "shield" : "slow";
+    const size = laneWidth * 0.34;
+
+    powerups.push({
+        lane,
+        type,
+        x: laneCenter(lane) - size / 2,
+        y: -size - 20,
+        width: size,
+        height: size,
+        rotation: 0
+    });
+}
+
+/* Small collision boxes */
+function getHitbox(object, insetX, insetY) {
+    return {
+        x: object.x + object.width * insetX,
+        y: object.y + object.height * insetY,
+        width: object.width * (1 - insetX * 2),
+        height: object.height * (1 - insetY * 2)
+    };
+}
+
+function boxesOverlap(a, b) {
+    return (
+        a.x < b.x + b.width &&
+        a.x + a.width > b.x &&
+        a.y < b.y + b.height &&
+        a.y + a.height > b.y
+    );
+}
+
+/* Player movement */
+function movePlayer(direction) {
+    if (!running || !player) {
+        return;
+    }
+
+    const nextLane = player.targetLane + direction;
+    player.targetLane = Math.max(0, Math.min(LANE_COUNT - 1, nextLane));
+}
+
+function updatePlayer(deltaTime) {
+    const targetX = laneCenter(player.targetLane) - player.width / 2;
+    const difference = targetX - player.x;
+    const maxMove = player.moveSpeed * deltaTime;
+
+    if (Math.abs(difference) <= maxMove) {
+        player.x = targetX;
+    } else {
+        player.x += Math.sign(difference) * maxMove;
+    }
+
+    const minX = roadLeft;
+    const maxX = roadLeft + roadWidth - player.width;
+    player.x = Math.max(minX, Math.min(maxX, player.x));
+}
+
+/* Update game */
+function updateGame(deltaTime) {
+    elapsedTime += deltaTime;
+
+    currentSpeed = Math.min(
+        MAX_SPEED,
+        INITIAL_SPEED + elapsedTime * SPEED_INCREASE_RATE
+    );
+
+    const speedMultiplier = currentSpeed / INITIAL_SPEED;
+
+    distance += currentSpeed * deltaTime * 0.045;
+    roadLineOffset += currentSpeed * deltaTime;
+
+    updatePlayer(deltaTime);
+
+    rowSpawnTimer += currentSpeed * deltaTime;
+    if (rowSpawnTimer >= ROW_DISTANCE) {
+        rowSpawnTimer -= ROW_DISTANCE;
+        spawnObstacleRow();
+    }
+
+    powerupSpawnTimer -= deltaTime;
+    if (powerupSpawnTimer <= 0) {
+        spawnPowerup();
+        powerupSpawnTimer = randomRange(POWERUP_SPAWN_MIN, POWERUP_SPAWN_MAX);
+    }
+
+    const opponentSpeedMultiplier = slowActive ? 0.45 : 1;
+
+    if (slowActive) {
+        slowRemaining -= deltaTime;
+
+        if (slowRemaining <= 0) {
+            slowRemaining = 0;
+            slowActive = false;
+        }
+    }
+
+    const playerBox = getHitbox(player, 0.12, 0.08);
+
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        const obstacle = obstacles[i];
+
+        obstacle.y += currentSpeed * obstacle.speedFactor *
+            opponentSpeedMultiplier * deltaTime;
+
+        if (obstacle.y > gameHeight + obstacle.height + 40) {
+            obstacles.splice(i, 1);
+            continue;
+        }
+
+        const obstacleBox = getHitbox(obstacle, 0.14, 0.1);
+
+        if (boxesOverlap(playerBox, obstacleBox)) {
+            if (shieldActive) {
+                shieldActive = false;
+                obstacles.splice(i, 1);
+                playShieldHitSound();
+            } else {
+                endRound();
+                return;
+            }
+        }
+    }
+
+    for (let i = powerups.length - 1; i >= 0; i--) {
+        const powerup = powerups[i];
+
+        powerup.y += currentSpeed * opponentSpeedMultiplier * deltaTime;
+        powerup.rotation += deltaTime * 3;
+
+        if (powerup.y > gameHeight + powerup.height + 40) {
+            powerups.splice(i, 1);
+            continue;
+        }
+
+        const powerBox = getHitbox(powerup, 0.08, 0.08);
+
+        if (boxesOverlap(playerBox, powerBox)) {
+            if (powerup.type === "shield") {
+                shieldActive = true;
+            } else {
+                slowActive = true;
+                slowRemaining = SLOW_TIME_DURATION;
+            }
+
+            powerups.splice(i, 1);
+            playPickupSound();
+        }
+    }
+
+    updateHud(speedMultiplier);
+    updatePowerStatus();
+}
+
+/* HUD */
+function updateHud(speedMultiplier = currentSpeed / INITIAL_SPEED) {
+    distanceValue.textContent = `${Math.floor(distance)} م`;
+    speedValue.textContent = `x${speedMultiplier.toFixed(2)}`;
+    bestValue.textContent = `${Math.floor(bestScore)} م`;
+}
+
+function updatePowerStatus() {
+    let text = "";
+
+    if (shieldActive && slowActive) {
+        text = `🛡️ درع | ⏳ تبطيء ${slowRemaining.toFixed(1)} ث`;
+    } else if (shieldActive) {
+        text = "🛡️ الدرع جاهز";
+    } else if (slowActive) {
+        text = `⏳ تبطيء: ${slowRemaining.toFixed(1)} ث`;
+    }
+
+    powerStatus.textContent = text;
+    powerStatus.classList.toggle("visible", text !== "");
+}
+
+/* Drawing */
+function drawBackground() {
+    ctx.fillStyle = "#356b35";
+    ctx.fillRect(0, 0, gameWidth, gameHeight);
+
+    ctx.fillStyle = "#2b2b2b";
+    ctx.fillRect(roadLeft, 0, roadWidth, gameHeight);
+
+    ctx.fillStyle = "#d7d7d7";
+    ctx.fillRect(roadLeft - 5, 0, 5, gameHeight);
+    ctx.fillRect(roadLeft + roadWidth, 0, 5, gameHeight);
+
+    const dashHeight = 44;
+    const dashGap = 42;
+    const cycle = dashHeight + dashGap;
+    const offset = roadLineOffset % cycle;
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.82)";
+
+    for (let divider = 1; divider < LANE_COUNT; divider++) {
+        const x = roadLeft + laneWidth * divider - 3;
+
+        for (let y = -cycle + offset; y < gameHeight + cycle; y += cycle) {
+            ctx.fillRect(x, y, 6, dashHeight);
+        }
+    }
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.10)";
+    ctx.fillRect(
+        roadLeft + roadWidth * 0.48,
+        0,
+        roadWidth * 0.04,
+        gameHeight
+    );
+}
+
+function drawCar(car, isPlayer) {
+    const x = car.x;
+    const y = car.y;
+    const w = car.width;
+    const h = car.height;
+
+    const colors = ["#ef4444", "#3b82f6", "#f59e0b", "#a855f7", "#ec4899"];
+    const bodyColor = isPlayer ? "#22c55e" : colors[car.colorIndex || 0];
+
+    ctx.save();
+
+    if (isPlayer && shieldActive) {
+        ctx.beginPath();
+        ctx.arc(x + w / 2, y + h / 2, Math.max(w, h) * 0.68, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(96, 165, 250, 0.16)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(147, 197, 253, 0.9)";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+    }
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
+    ctx.fillRect(x + w * 0.13, y + h * 0.05, w * 0.74, h * 0.94);
+
+    ctx.fillStyle = bodyColor;
+    roundRect(ctx, x + w * 0.12, y + h * 0.02, w * 0.76, h * 0.94, w * 0.18);
+    ctx.fill();
+
+    ctx.fillStyle = "#111827";
+    roundRect(ctx, x + w * 0.25, y + h * 0.18, w * 0.5, h * 0.25, w * 0.08);
+    ctx.fill();
+
+    ctx.fillStyle = "#64748b";
+    roundRect(ctx, x + w * 0.25, y + h * 0.48, w * 0.5, h * 0.18, w * 0.06);
+    ctx.fill();
+
+    ctx.fillStyle = isPlayer ? "#fef08a" : "#fee2e2";
+    ctx.fillRect(x + w * 0.17, y + h * 0.06, w * 0.16, h * 0.08);
+    ctx.fillRect(x + w * 0.67, y + h * 0.06, w * 0.16, h * 0.08);
+
+    ctx.fillStyle = "#ef4444";
+    ctx.fillRect(x + w * 0.17, y + h * 0.83, w * 0.16, h * 0.07);
+    ctx.fillRect(x + w * 0.67, y + h * 0.83, w * 0.16, h * 0.07);
+
+    ctx.fillStyle = "#111111";
+    ctx.fillRect(x + w * 0.02, y + h * 0.18, w * 0.1, h * 0.22);
+    ctx.fillRect(x + w * 0.88, y + h * 0.18, w * 0.1, h * 0.22);
+    ctx.fillRect(x + w * 0.02, y + h * 0.62, w * 0.1, h * 0.22);
+    ctx.fillRect(x + w * 0.88, y + h * 0.62, w * 0.1, h * 0.22);
+
+    ctx.restore();
+}
+
+function drawPowerup(powerup) {
+    const x = powerup.x + powerup.width / 2;
+    const y = powerup.y + powerup.height / 2;
+    const radius = powerup.width / 2;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(powerup.rotation);
+
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+
+    ctx.fillStyle =
+        powerup.type === "shield"
+            ? "rgba(59, 130, 246, 0.9)"
+            : "rgba(168, 85, 247, 0.9)";
+
+    ctx.fill();
+
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `${Math.floor(radius * 1.1)}px Arial`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(powerup.type === "shield" ? "🛡" : "⏳", 0, 2);
+
+    ctx.restore();
+}
+
+function roundRect(context, x, y, width, height, radius) {
+    const r = Math.min(radius, width / 2, height / 2);
+
+    context.beginPath();
+    context.moveTo(x + r, y);
+    context.arcTo(x + width, y, x + width, y + height, r);
+    context.arcTo(x + width, y + height, x, y + height, r);
+    context.arcTo(x, y + height, x, y, r);
+    context.arcTo(x, y, x + width, y, r);
+    context.closePath();
+}
+
+/* Render */
+function renderGame() {
+    ctx.clearRect(0, 0, gameWidth, gameHeight);
+    drawBackground();
+
+    for (const powerup of powerups) {
+        drawPowerup(powerup);
+    }
+
+    for (const obstacle of obstacles) {
+        drawCar(obstacle, false);
+    }
+
+    if (player) {
+        drawCar(player, true);
+    }
+}
+
+/* Main loop */
+function gameLoop(timestamp) {
+    if (!running) {
+        animationFrameId = null;
+        return;
+    }
+
+    if (lastTimestamp === null) {
+        lastTimestamp = timestamp;
+    }
+
+    let deltaTime = (timestamp - lastTimestamp) / 1000;
+    lastTimestamp = timestamp;
+
+    deltaTime = Math.min(deltaTime, MAX_DELTA_TIME);
+
+    updateGame(deltaTime);
+    renderGame();
+
+    if (!running) {
+        animationFrameId = null;
+        return;
+    }
+
+    if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+    }
+
+    animationFrameId = requestAnimationFrame(gameLoop);
+}
+
+/* Start round */
+function startRound() {
+    ensureAudio();
+
+    if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+    }
+
+    running = false;
+    lastTimestamp = null;
+
+    resetRoundState();
+
+    overlay.style.display = "none";
+
+    running = true;
+    renderGame();
+
+    if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+    }
+
+    animationFrameId = requestAnimationFrame(gameLoop);
+}
+
+/* End round */
+function endRound() {
+    if (!running) {
+        return;
+    }
+
+    running = false;
+
+    if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+    }
+
+    lastTimestamp = null;
+
+    const finalScore = Math.floor(distance);
+
+    if (finalScore > bestScore) {
+        bestScore = finalScore;
+        sessionStorage.setItem("roadRacerBestScore", String(bestScore));
+    }
+
+    updateHud();
+    updatePowerStatus();
+
+    playCrashSound();
+    playGameOverSound();
+
+    overlayTitle.textContent = "انتهت الجولة!";
+    overlayText.innerHTML =
+        `قطعت <strong>${finalScore} متر</strong><br>` +
+        `أفضل نتيجة: <strong>${Math.floor(bestScore)} متر</strong>`;
+
+    actionButton.textContent = "ابدأ جولة جديدة";
+    overlay.style.display = "flex";
+}
+
+/* Keyboard controls */
+window.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        movePlayer(-1);
+    }
+
+    if (event.key === "ArrowRight") {
+        event.preventDefault();
+        movePlayer(1);
+    }
+});
+
+/* Mobile buttons */
+leftButton.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    movePlayer(-1);
+});
+
+rightButton.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    movePlayer(1);
+});
+
+/* Swipe controls */
+let touchStartX = null;
+
+canvas.addEventListener("pointerdown", (event) => {
+    touchStartX = event.clientX;
+});
+
+canvas.addEventListener("pointerup", (event) => {
+    if (touchStartX === null) {
+        return;
+    }
+
+    const difference = event.clientX - touchStartX;
+    const minimumSwipe = 35;
+
+    if (difference > minimumSwipe) {
+        movePlayer(1);
+    } else if (difference < -minimumSwipe) {
+        movePlayer(-1);
+    }
+
+    touchStartX = null;
+});
+
+canvas.addEventListener("pointercancel", () => {
+    touchStartX = null;
+});
+
+/* Start button */
+actionButton.addEventListener("click", startRound);
+
+/* Resize handling */
+window.addEventListener("resize", () => {
+    resizeCanvas();
+
+    if (player) {
+        renderGame();
+    }
+});
+
+/* Initial setup */
+resizeCanvas();
+resetRoundState();
+renderGame();
+</script>
+
+</body>
+</html>
